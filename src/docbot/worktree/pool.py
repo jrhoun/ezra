@@ -29,7 +29,14 @@ class Worktree:
 
 
 def _run(cmd: list[str], cwd: Path) -> None:
-    subprocess.run(cmd, cwd=cwd, check=True, capture_output=True)
+    """Run a subprocess; on failure, raise CalledProcessError carrying stderr."""
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode, cmd,
+            output=result.stdout,
+            stderr=f"{result.stderr}\n(cmd: {' '.join(cmd)} in {cwd})",
+        )
 
 
 class WorktreePool:
@@ -65,18 +72,33 @@ class WorktreePool:
 
         ts = int(time.time())
         branch = f"docbot/{ts}-{branch_slug}-{uuid.uuid4().hex[:6]}"
-        _run(["git", "checkout", "-B", branch, "master"], cwd=path)
+        try:
+            # Defensive clean in case a prior worker crashed mid-claim and left
+            # uncommitted state behind.
+            _run(["git", "reset", "--hard", "master"], cwd=path)
+            _run(["git", "clean", "-fdx"], cwd=path)
+            _run(["git", "checkout", "-B", branch, "master"], cwd=path)
+        except Exception:
+            with self._lock:
+                self._available.append(path)
+            raise
         wt = Worktree(path=path, branch=branch)
         with self._lock:
             self._claimed[path] = wt
         return wt
 
     def release(self, wt: Worktree) -> None:
+        reset_failed = False
         try:
             _run(["git", "reset", "--hard", "master"], cwd=wt.path)
             _run(["git", "clean", "-fdx"], cwd=wt.path)
         except subprocess.CalledProcessError as e:
-            log.warning("worktree reset failed", extra={"path": str(wt.path), "err": e.stderr})
+            reset_failed = True
+            log.warning(
+                "worktree reset failed; dropping from pool",
+                extra={"path": str(wt.path), "err": e.stderr},
+            )
         with self._lock:
             self._claimed.pop(wt.path, None)
-            self._available.append(wt.path)
+            if not reset_failed:
+                self._available.append(wt.path)
