@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh docbot verification repos
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=4h
+Unit=docbot-refresh.service
+
+[Install]
+WantedBy=timers.target

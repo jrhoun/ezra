@@ -1,0 +1,24 @@
+[Unit]
+Description=docs Slack PR bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=docbot
+Group=docbot
+WorkingDirectory=/opt/docbot/app
+EnvironmentFile=/etc/docbot/env
+ExecStart=/opt/docbot/app/.venv/bin/docbot --config /etc/docbot/config.yaml
+Restart=on-failure
+RestartSec=10
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/docbot
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=One-shot refresh of docbot verification repos
+
+[Service]
+Type=oneshot
+User=docbot
+ExecStart=/opt/docbot/app/scripts/refresh-repos.sh
