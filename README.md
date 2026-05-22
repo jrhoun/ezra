@@ -1,6 +1,6 @@
 # ezra
 
-A Slack-driven bot that converts `#documentation` channel reports into verified PRs against a target documentation repository. Named for the Old Testament scribe who returned to Jerusalem to verify and teach the law — same role, smaller scale.
+A Slack-driven bot that converts reports in a configured Slack channel into verified PRs against a target documentation repository.
 
 The bot's verification methodology is defined in a user-invocable skill in the target docs repo, not in this codebase. ezra is a generic conduit: Slack input → spawn Claude with the skill → push branch + open PR on success, or DM the trigger user on failure. All site-specific values live in `config.yaml`.
 
