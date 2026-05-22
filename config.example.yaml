@@ -1,0 +1,40 @@
+# docs-slack-pr-bot configuration. Copy to config.local.yaml or /etc/docbot/config.yaml
+# and fill in the deployment-specific values. Secrets come from env vars (${...}).
+
+slack:
+  app_token: ${SLACK_APP_TOKEN}        # xapp-... (Socket Mode app-level token)
+  bot_token: ${SLACK_BOT_TOKEN}        # xoxb-... (bot OAuth token)
+  watch_channel_id: ${SLACK_CHANNEL_ID}
+  trigger_emoji: robot_face            # stock Slack emoji; humans add this
+  processing_emoji: docbot-thinking    # custom; one-time admin upload
+  done_emoji: docbot-done              # custom; one-time admin upload
+  dm_default_user:                     # optional; null -> DM the reactor
+
+github:
+  fork_owner: jrhoun                   # bot pushes branches to this fork
+  upstream_repo: liferay/liferay-learn
+  base_branch: master
+  pr_label: docs/slack-bot
+  pr_title_prefix: ""                  # optional; default empty
+
+claude:
+  binary: /usr/local/bin/claude
+  max_turns: 30
+  timeout_sec: 900
+  allowed_tools: []                    # format illustrative; confirm against headless claude CLI
+
+repos:
+  root: /opt/docbot/repos
+  refresh_interval_hours: 4
+  base_repo: liferay/liferay-learn
+  verification_repos:
+    - liferay/liferay-portal
+    - liferay/liferay-ide
+    - liferay/liferay-blade-cli
+
+worktree:
+  pool_size: 3
+  max_message_age_days: 30
+
+mode:
+  dry_run: false
