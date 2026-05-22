@@ -6,6 +6,7 @@ import json
 import logging
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,7 +14,23 @@ log = logging.getLogger(__name__)
 
 
 class PRError(Exception):
-    pass
+    """Raised when git push or gh pr create fails. Carries a `kind`
+    discriminator so the orchestrator can distinguish push failures from
+    PR-create failures, plus the returncode and stderr from the failing
+    subprocess."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        kind: str,
+        returncode: int | None = None,
+        stderr: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind  # one of: "push_failed" | "gh_create_failed"
+        self.returncode = returncode
+        self.stderr = stderr
 
 
 @dataclass
@@ -34,6 +51,7 @@ class PROpener:
         pr_title_prefix: str,
         dry_run: bool,
         dry_run_dir: Path,
+        fork_remote: str | None = None,
     ) -> None:
         self.fork_owner = fork_owner
         self.upstream_repo = upstream_repo
@@ -42,6 +60,7 @@ class PROpener:
         self.pr_title_prefix = pr_title_prefix
         self.dry_run = dry_run
         self.dry_run_dir = dry_run_dir
+        self.fork_remote = fork_remote or f"{fork_owner}-fork"
 
     def open(self, req: PRRequest) -> str:
         title = f"{self.pr_title_prefix} {req.title_subject}".strip()
@@ -56,15 +75,20 @@ class PROpener:
                 "fork_owner": self.fork_owner,
                 "upstream_repo": self.upstream_repo,
             }
-            out = self.dry_run_dir / f"{int(time.time())}-{req.branch.replace('/', '-')}.json"
+            out = self.dry_run_dir / f"{int(time.time())}-{uuid.uuid4().hex[:8]}-{req.branch.replace('/', '-')}.json"
             out.write_text(json.dumps(payload, indent=2))
             return f"dry-run://{req.branch}"
 
         # Push branch to fork
-        push_cmd = ["git", "push", f"{self.fork_owner}-fork", req.branch]
+        push_cmd = ["git", "push", self.fork_remote, req.branch]
         result = subprocess.run(push_cmd, cwd=req.workdir, capture_output=True, text=True, check=False)
         if result.returncode != 0:
-            raise PRError(f"git push failed: {result.stderr}")
+            raise PRError(
+                f"git push to {self.fork_remote} failed",
+                kind="push_failed",
+                returncode=result.returncode,
+                stderr=result.stderr,
+            )
 
         # Create PR upstream
         gh_cmd = [
@@ -78,6 +102,11 @@ class PROpener:
         ]
         result = subprocess.run(gh_cmd, cwd=req.workdir, capture_output=True, text=True, check=False)
         if result.returncode != 0:
-            raise PRError(f"gh pr create failed: {result.stderr}")
+            raise PRError(
+                "gh pr create failed",
+                kind="gh_create_failed",
+                returncode=result.returncode,
+                stderr=result.stderr,
+            )
 
         return result.stdout.strip()
