@@ -16,7 +16,23 @@ log = logging.getLogger(__name__)
 
 
 class ClaudeError(Exception):
-    pass
+    """Raised when the Claude subprocess fails. Carries a `kind` discriminator
+    so the orchestrator can distinguish timeout from non-zero exit from
+    unparseable output, plus the original returncode and stderr where
+    available."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        kind: str,
+        returncode: int | None = None,
+        stderr: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind  # one of: "timeout" | "exit" | "unparseable"
+        self.returncode = returncode
+        self.stderr = stderr
 
 
 @dataclass
@@ -61,11 +77,17 @@ class ClaudeRunner:
             )
         except subprocess.TimeoutExpired as e:
             log.warning("claude timeout", extra={"workdir": str(workdir)})
-            raise ClaudeError(f"timeout after {self.timeout_sec}s") from e
+            raise ClaudeError(
+                f"timeout after {self.timeout_sec}s",
+                kind="timeout",
+            ) from e
 
         if result.returncode != 0:
             raise ClaudeError(
-                f"claude exited {result.returncode}: {result.stderr[-2000:]}"
+                f"claude exited {result.returncode}: {result.stderr[-2000:]}",
+                kind="exit",
+                returncode=result.returncode,
+                stderr=result.stderr,
             )
 
         return self._parse(result.stdout)
@@ -84,4 +106,7 @@ class ClaudeRunner:
                 )
             except (json.JSONDecodeError, KeyError):
                 continue
-        raise ClaudeError(f"unparseable claude output (last 500 chars): {stdout[-500:]}")
+        raise ClaudeError(
+            f"unparseable claude output (last 500 chars): {stdout[-500:]}",
+            kind="unparseable",
+        )
