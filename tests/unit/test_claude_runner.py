@@ -106,3 +106,44 @@ def test_runner_passes_max_turns_and_allowed_tools(tmp_path, monkeypatch):
     assert args.count("--allowed-tools") == 2
     assert "Read" in args
     assert "Bash(git:*)" in args
+
+
+def test_runner_parses_source_and_source_ref(fake_claude, tmp_path, monkeypatch):
+    """New JSON contract carries source channel and source reference."""
+    monkeypatch.setenv("FAKE_PRELUDE", "")
+    monkeypatch.setenv(
+        "FAKE_JSON",
+        json.dumps({
+            "outcome": "pr_ready",
+            "source": "lrdocs",
+            "source_ref": "LRDOCS-12345",
+            "reasoning": "the flag was promoted",
+            "files_changed": ["docs/foo.md"],
+            "commit_sha": "abc123",
+            "verified_against": ["liferay-portal:feature.flag.foo"],
+        }),
+    )
+    runner = ClaudeRunner(binary=str(fake_claude), timeout_sec=30, max_turns=10, allowed_tools=[])
+    outcome = runner.run(workdir=tmp_path, prompt="investigate")
+    assert outcome.source == "lrdocs"
+    assert outcome.source_ref == "LRDOCS-12345"
+
+
+def test_runner_defaults_source_when_missing(fake_claude, tmp_path, monkeypatch):
+    """Old skill output (no source/source_ref) is backward-compatible — defaults
+    apply so the orchestrator and DM sender keep working."""
+    monkeypatch.setenv("FAKE_PRELUDE", "")
+    monkeypatch.setenv(
+        "FAKE_JSON",
+        json.dumps({
+            "outcome": "pr_ready",
+            "reasoning": "x",
+            "files_changed": ["docs/foo.md"],
+            "commit_sha": "abc",
+            "verified_against": [],
+        }),
+    )
+    runner = ClaudeRunner(binary=str(fake_claude), timeout_sec=30, max_turns=10, allowed_tools=[])
+    outcome = runner.run(workdir=tmp_path, prompt="x")
+    assert outcome.source == "slack"
+    assert outcome.source_ref == ""

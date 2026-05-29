@@ -42,6 +42,8 @@ class ClaudeOutcome:
     files_changed: list[str]
     commit_sha: str
     verified_against: list[str]
+    source: str = "slack"
+    source_ref: str = ""
 
 
 class ClaudeRunner:
@@ -103,6 +105,8 @@ class ClaudeRunner:
                     files_changed=data.get("files_changed", []),
                     commit_sha=data.get("commit_sha", ""),
                     verified_against=data.get("verified_against", []),
+                    source=data.get("source", "slack"),
+                    source_ref=data.get("source_ref", ""),
                 )
             except (json.JSONDecodeError, KeyError):
                 continue

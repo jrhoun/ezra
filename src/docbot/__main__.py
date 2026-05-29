@@ -21,8 +21,8 @@ from docbot.worktree.pool import WorktreePool
 
 
 DEFAULT_PROMPT = """\
-Investigate this Liferay documentation report by running the
-/verify-doc-report skill. The skill defines the verification methodology
+Triage this Liferay documentation report by running the
+/triage-reports skill. The skill defines the verification methodology
 and output format.
 
 Slack message:
